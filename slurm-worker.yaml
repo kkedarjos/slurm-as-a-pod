@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: slurm-worker
+spec:
+  serviceName: slurm-worker
+  replicas: 2
+  selector:
+    matchLabels:
+      app: slurm-worker
+  template:
+    metadata:
+      labels:
+        app: slurm-worker
+    spec:
+      containers:
+        - name: slurm-worker
+          image: kedar-slurm:2.0
+          securityContext:
+            privileged: true
+          command: ["/bin/bash"]
+          args:
+            - "-c"
+            - |
+              cp /mnt/munge/munge.key /etc/munge/munge.key && \
+              chown munge:munge /etc/munge/munge.key && \
+              chmod 400 /etc/munge/munge.key && \
+              service munge start && \
+              slurmd -D
+          volumeMounts:
+            - name: slurm-config
+              mountPath: /etc/slurm/slurm.conf
+              subPath: slurm.conf
+            - name: munge-secret
+              mountPath: /mnt/munge
+      volumes:
+        - name: slurm-config
+          configMap:
+            name: slurm-config
+        - name: munge-secret
+          secret:
+            secretName: slurm-munge
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slurm-worker
+spec:
+  clusterIP: None
+  selector:
+    app: slurm-worker
